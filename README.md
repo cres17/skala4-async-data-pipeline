@@ -1,4 +1,4 @@
-# Day 1 종합 실습
+# 비동기 데이터 수집 미니 파이프라인 제작 실습
 
 ![Python 3.14](https://img.shields.io/badge/Python-3.14-3776AB?logo=python&logoColor=white)
 
