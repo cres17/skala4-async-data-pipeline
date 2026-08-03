@@ -1,8 +1,0 @@
-.venv/
-venv/
-__pycache__/
-.pytest_cache/
-.ruff_cache/
-*.pyc
-data/*.csv
-data/*.parquet
