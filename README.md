@@ -1,119 +1,56 @@
-# 비동기 데이터 수집 미니 파이프라인 제작 실습
+# 비동기 데이터 수집 미니 파이프라인
 
+![Python](https://img.shields.io/badge/Python-3776AB?style=flat&logoColor=white&logo=python)
+![asyncio](https://img.shields.io/badge/asyncio-3776AB?style=flat&logoColor=white)
+![httpx](https://img.shields.io/badge/httpx-2F6B4F?style=flat&logoColor=white)
+![Pydantic v2](https://img.shields.io/badge/Pydantic%20v2-E92063?style=flat&logoColor=white&logo=pydantic)
+![pandas](https://img.shields.io/badge/pandas-150458?style=flat&logoColor=white&logo=pandas)
+![Apache Parquet](https://img.shields.io/badge/Apache%20Parquet-50ABF1?style=flat&logoColor=white&logo=apacheparquet)
+![PyArrow](https://img.shields.io/badge/PyArrow-000000?style=flat&logoColor=white&logo=apachearrow)
+![pytest](https://img.shields.io/badge/pytest-0A9EDC?style=flat&logoColor=white&logo=pytest)
+![Ruff](https://img.shields.io/badge/Ruff-D7FF64?style=flat&logoColor=black&logo=ruff)
 
-세 API에서 날씨·국가·IP 위치 데이터를 동시에 가져와 검증하고, CSV와 Parquet로 저장하는 실습이다. 저장 후에는 파일을 다시 읽어 데이터가 빠지지 않았는지 확인하고 형식별 처리 시간도 비교한다.
+SKALA 데이터 분석 · AIOps 과정 Day 1 종합 실습입니다. 서로 다른 세 공개 API에서 날씨 · 국가 · IP 위치 데이터를 동시에 받아 Pydantic으로 검증하고, CSV와 Parquet로 저장한 뒤 다시 읽어 데이터가 그대로인지 확인합니다. 두 형식의 읽기 · 쓰기 시간과 파일 크기도 비교합니다.
 
-## 아키텍처
+## 전체 아키텍처
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/architecture-dark.svg">
-  <img src="docs/assets/readme/architecture.svg" alt="비동기 API 수집 주요 구성과 데이터 흐름" width="1200">
-</picture>
+<p align="center">
+  <img src="docs/assets/readme/architecture.svg" alt="비동기 데이터 수집 파이프라인 아키텍처" width="100%">
+</p>
 
-메인 프로세스가 별도 수집 프로세스를 실행하고, worker 안에서 API 세 개를 동시에 요청합니다. 검증을 통과한 자료를 CSV·Parquet로 저장한 뒤 다시 읽어 무결성과 처리 시간을 비교합니다.
+| 파일 | 역할 |
+|------|------|
+| `main.py` | 수집 프로세스 실행 → 검증 → 저장 · 비교 → 결과 출력 |
+| `collector_worker.py` | 별도 프로세스에서 `collect_all()`을 실행하고 결과를 JSON으로 stdout에 출력 |
+| `collectors.py` | API 주소, 동시 요청, 응답을 행 단위 dict로 바꾸는 함수 |
+| `models.py` | `WeatherRecord`, `CountryInfo`, `IpLocation` Pydantic 모델 |
+| `storage.py` | CSV · Parquet 저장, 5회 반복 측정, 재로딩 무결성 확인 |
+| `test_pipeline.py` | 검증 모델의 정상 · 범위 초과 · 문자열 숫자 입력 테스트 |
 
-| 구성 | 역할 |
-|---|---|
-| 수집 | httpx 비동기 요청과 HTTP 오류 확인; 수집 프로세스 10초 제한 |
-| 검증 | Pydantic 모델로 데이터 형식과 범위 확인 |
-| 저장·비교 | CSV·Parquet 쓰기·읽기 5회 중앙값과 행·컬럼 대조 |
+## 각 기술 설명
 
-<details>
-<summary>아키텍처 상세와 구현 경계</summary>
+### asyncio · httpx
 
-### 프로젝트 구조
+`collectors.py`의 `collect_all()`이 하나의 `httpx.AsyncClient`로 세 요청을 만들고 `asyncio.gather()`로 동시에 기다립니다. 각 요청은 `asyncio.wait_for`로 8초 마감을 걸어, HTTP 클라이언트 타임아웃만으로 막기 어려운 DNS 지연도 끊습니다.
 
-```text
-async_data_pipeline/
-├── README.md               # 프로젝트 설명과 실행 방법
-├── main.py                 # 전체 실행 흐름
-├── collectors.py           # 비동기 API 수집과 응답 변환
-├── collector_worker.py     # 네트워크 수집 작업 프로세스
-├── models.py               # Pydantic 검증 모델
-├── storage.py              # CSV·Parquet 저장과 성능 측정
-├── test_pipeline.py        # 검증 규칙 테스트
-├── requirements.txt        # 설치 패키지
-└── data/                   # 실행 결과 파일
-```
+| API | 요청 | 결과 |
+|-----|------|------|
+| Open-Meteo | 서울 좌표, `temperature_2m` · `precipitation_probability`, 3일 | 시간별 72행 |
+| Countries.dev | `/alpha/KOR` | 국가명 · 수도 · 인구 등 1행 |
+| ip-api | `8.8.8.8` | 국가 · 도시 · 위도 · 경도 1행 |
 
-</details>
+### subprocess — 수집 프로세스 분리
 
-## 기술 스택
+`main.py`는 수집을 `collector_worker.py` 하위 프로세스로 실행하고 10초 안에 끝나지 않으면 종료합니다. SSL · DNS 초기화가 멈춰도 메인 프로그램이 같이 멈추지 않게 하기 위한 구조입니다.
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/tech-stack-dark.svg">
-  <img src="docs/assets/readme/tech-stack.svg" alt="비동기 API 수집 기술 스택" width="1200">
-</picture>
+### Pydantic v2
 
-| 영역 | 사용 기술 | 역할 |
-|---|---|---|
-| 수집 | Python asyncio, httpx | 비동기 API 요청과 별도 수집 프로세스 |
-| 검증 | Pydantic v2 | 응답 모델과 범위 검증 |
-| 저장 | pandas, PyArrow | CSV·Parquet 읽기와 쓰기 |
-| 검사 | pytest, Ruff | 검증 로직 테스트와 코드 스타일 확인 |
+`model_validate`로 API별 필수 필드와 값 범위를 검사합니다. 기온은 -90~65℃, 강수 확률은 0~100, 국가 코드는 대문자 3자리, 인구는 양수, 위도 · 경도는 지리 범위 안이어야 하며, `field_validator(mode="before")`로 숫자 자리에 문자열이 들어오는 경우를 범위 검사 전에 걸러 냅니다. 하나라도 실패하면 어느 API의 어느 필드인지 메시지로 알려 주고 저장하지 않습니다.
 
-## 수집 데이터
+### pandas · PyArrow (CSV · Parquet)
 
-| API | 수집 내용 |
-|---|---|
-| Open-Meteo | 서울 3일간 시간대별 기온과 강수 확률 |
-| Countries.dev | 대한민국 국가명, 국가 코드, 수도, 인구 |
-| ip-api | `8.8.8.8`의 국가, 도시, 위도, 경도 |
+검증된 74행을 하나의 DataFrame으로 합쳐 `to_csv`와 `to_parquet`로 저장합니다(Parquet 엔진은 requirements의 pyarrow). `storage.py`가 쓰기 · 읽기를 각각 5회 반복한 중앙값과 파일 크기를 비교하고, 두 파일을 다시 읽어 행 수와 컬럼이 저장 전과 같은지 확인합니다.
 
-## 주요 기능
+### pytest · Ruff
 
-- `asyncio.gather()`를 이용한 API 3개 동시 요청
-- `raise_for_status()`를 이용한 HTTP 오류 확인
-- Pydantic v2를 이용한 타입·필수값·범위 검증
-- CSV·Parquet 읽기와 쓰기 시간 5회 측정 후 중앙값 비교
-- 저장 전후 행 수와 컬럼 일치 여부 확인
-- DNS 또는 SSL 연결이 멈출 때 수집 작업을 10초 후 종료
-
-## 실행 방법
-
-기존 실습 기록의 환경은 Python 3.14다. 이 버전 표기는 다른 Python 버전의 호환성을 검증했다는 뜻이나 최소 지원 버전 선언은 아니다. 의존성은 `requirements.txt`를 기준으로 설치하며, Pydantic 외 대부분 패키지 버전은 고정되어 있지 않다.
-
-아래 명령은 macOS·Linux 기준이다. `main.py`의 자동 가상환경 전환도 `.venv/bin/python` 경로를 사용하므로 Windows에서는 이 경로 처리를 조정해야 한다.
-
-처음 실행할 때만 가상환경을 만들고 패키지를 설치한다.
-
-```bash
-python3 -m venv .venv
-.venv/bin/python -m pip install -r requirements.txt
-```
-
-메인 프로그램을 실행한다.
-
-```bash
-.venv/bin/python -u main.py
-```
-
-코드 테스트와 스타일 검사는 아래 명령으로 확인한다.
-
-```bash
-.venv/bin/python -m pytest -q
-.venv/bin/python -m ruff check .
-```
-
-## 실행 결과
-
-실제 실행에서는 날씨 72건, 국가 정보 1건, IP 위치 정보 1건을 합쳐 총 74건을 저장했다.
-
-```text
-INFO | [핵심 확인] 세 API 응답 3건을 모두 정상 수집했습니다.
-INFO | [핵심 확인] Pydantic 검증 통과: 날씨 72건, 국가 1건, IP 위치 1건
-
-=== CSV·Parquet 무결성 검증 완료 ===
-저장 전후 행 수: 74건 (CSV / Parquet 모두 일치)
-```
-
-생성 파일:
-
-- `data/collected_data.csv`
-- `data/collected_data.parquet`
-
-## 참고 사항
-
-폴더명을 변경해도 실행 파일이 이전 가상환경 경로를 참조하지 않도록 `.venv/bin/python -m ...` 형식으로 실행한다. `main.py`를 시스템 Python으로 실행해도 현재 프로젝트의 `.venv`로 한 번만 자동 전환한다.
-
-`ip-api` 무료 주소는 HTTP를 사용하므로 실행 환경에서 HTTP 연결을 차단하면 해당 요청이 실패할 수 있다. 이 경우 프로그램은 실패한 수집 작업과 원인을 로그로 출력한다.
+`test_pipeline.py`가 날씨 모델이 정상 값은 받고, 범위를 넘는 강수 확률과 문자열 기온은 거부하는지 검사합니다. Ruff는 정적 검사에 씁니다.
