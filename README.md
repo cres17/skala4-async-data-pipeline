@@ -38,6 +38,10 @@ async_data_pipeline/
 
 ## 실행 방법
 
+기존 실습 기록의 환경은 Python 3.14다. 이 버전 표기는 다른 Python 버전의 호환성을 검증했다는 뜻이나 최소 지원 버전 선언은 아니다. 의존성은 `requirements.txt`를 기준으로 설치하며, Pydantic 외 대부분 패키지 버전은 고정되어 있지 않다.
+
+아래 명령은 macOS·Linux 기준이다. `main.py`의 자동 가상환경 전환도 `.venv/bin/python` 경로를 사용하므로 Windows에서는 이 경로 처리를 조정해야 한다.
+
 처음 실행할 때만 가상환경을 만들고 패키지를 설치한다.
 
 ```bash
