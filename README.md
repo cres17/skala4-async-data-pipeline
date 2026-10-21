@@ -1,8 +1,56 @@
 # 비동기 데이터 수집 미니 파이프라인 제작 실습
 
-![Python 3.14](https://img.shields.io/badge/Python-3.14-3776AB?logo=python&logoColor=white)
 
 세 API에서 날씨·국가·IP 위치 데이터를 동시에 가져와 검증하고, CSV와 Parquet로 저장하는 실습이다. 저장 후에는 파일을 다시 읽어 데이터가 빠지지 않았는지 확인하고 형식별 처리 시간도 비교한다.
+
+## 아키텍처
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/architecture-dark.svg">
+  <img src="docs/assets/readme/architecture.svg" alt="비동기 API 수집 주요 구성과 데이터 흐름" width="1200">
+</picture>
+
+메인 프로세스가 별도 수집 프로세스를 실행하고, worker 안에서 API 세 개를 동시에 요청합니다. 검증을 통과한 자료를 CSV·Parquet로 저장한 뒤 다시 읽어 무결성과 처리 시간을 비교합니다.
+
+| 구성 | 역할 |
+|---|---|
+| 수집 | httpx 비동기 요청과 HTTP 오류 확인; 수집 프로세스 10초 제한 |
+| 검증 | Pydantic 모델로 데이터 형식과 범위 확인 |
+| 저장·비교 | CSV·Parquet 쓰기·읽기 5회 중앙값과 행·컬럼 대조 |
+
+<details>
+<summary>아키텍처 상세와 구현 경계</summary>
+
+### 프로젝트 구조
+
+```text
+async_data_pipeline/
+├── README.md               # 프로젝트 설명과 실행 방법
+├── main.py                 # 전체 실행 흐름
+├── collectors.py           # 비동기 API 수집과 응답 변환
+├── collector_worker.py     # 네트워크 수집 작업 프로세스
+├── models.py               # Pydantic 검증 모델
+├── storage.py              # CSV·Parquet 저장과 성능 측정
+├── test_pipeline.py        # 검증 규칙 테스트
+├── requirements.txt        # 설치 패키지
+└── data/                   # 실행 결과 파일
+```
+
+</details>
+
+## 기술 스택
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/tech-stack-dark.svg">
+  <img src="docs/assets/readme/tech-stack.svg" alt="비동기 API 수집 기술 스택" width="1200">
+</picture>
+
+| 영역 | 사용 기술 | 역할 |
+|---|---|---|
+| 수집 | Python asyncio, httpx | 비동기 API 요청과 별도 수집 프로세스 |
+| 검증 | Pydantic v2 | 응답 모델과 범위 검증 |
+| 저장 | pandas, PyArrow | CSV·Parquet 읽기와 쓰기 |
+| 검사 | pytest, Ruff | 검증 로직 테스트와 코드 스타일 확인 |
 
 ## 수집 데이터
 
@@ -20,21 +68,6 @@
 - CSV·Parquet 읽기와 쓰기 시간 5회 측정 후 중앙값 비교
 - 저장 전후 행 수와 컬럼 일치 여부 확인
 - DNS 또는 SSL 연결이 멈출 때 수집 작업을 10초 후 종료
-
-## 프로젝트 구조
-
-```text
-async_data_pipeline/
-├── README.md               # 프로젝트 설명과 실행 방법
-├── main.py                 # 전체 실행 흐름
-├── collectors.py           # 비동기 API 수집과 응답 변환
-├── collector_worker.py     # 네트워크 수집 작업 프로세스
-├── models.py               # Pydantic 검증 모델
-├── storage.py              # CSV·Parquet 저장과 성능 측정
-├── test_pipeline.py        # 검증 규칙 테스트
-├── requirements.txt        # 설치 패키지
-└── data/                   # 실행 결과 파일
-```
 
 ## 실행 방법
 
