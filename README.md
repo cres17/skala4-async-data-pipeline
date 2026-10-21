@@ -1,3 +1,5 @@
+<div align="center">
+
 # 비동기 데이터 수집 미니 파이프라인
 
 ![Python](https://img.shields.io/badge/Python-3776AB?style=flat&logoColor=white&logo=python)
@@ -9,6 +11,8 @@
 ![PyArrow](https://img.shields.io/badge/PyArrow-000000?style=flat&logoColor=white&logo=apachearrow)
 ![pytest](https://img.shields.io/badge/pytest-0A9EDC?style=flat&logoColor=white&logo=pytest)
 ![Ruff](https://img.shields.io/badge/Ruff-D7FF64?style=flat&logoColor=black&logo=ruff)
+
+</div>
 
 SKALA 데이터 분석 · AIOps 과정 Day 1 종합 실습입니다. 서로 다른 세 공개 API에서 날씨 · 국가 · IP 위치 데이터를 동시에 받아 Pydantic으로 검증하고, CSV와 Parquet로 저장한 뒤 다시 읽어 데이터가 그대로인지 확인합니다. 두 형식의 읽기 · 쓰기 시간과 파일 크기도 비교합니다.
 
