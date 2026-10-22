@@ -103,7 +103,9 @@ def weather_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
     probabilities = hourly.get("precipitation_probability")
     if not all(isinstance(values, list) for values in (times, temperatures, probabilities)):
         raise ValueError("Open-Meteo 시간대별 배열 형식이 올바르지 않습니다.")
-    if not times or len({len(times), len(temperatures), len(probabilities)}) != 1:
+    if not times:
+        raise ValueError("Open-Meteo 시간대별 배열이 비어 있습니다.")
+    if len({len(times), len(temperatures), len(probabilities)}) != 1:
         raise ValueError("Open-Meteo 시간대별 배열 길이가 일치하지 않습니다.")
 
     return [

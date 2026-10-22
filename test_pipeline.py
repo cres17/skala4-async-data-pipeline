@@ -48,3 +48,23 @@ def test_weather_record_rejects_string_temperature() -> None:
             temperature_c="27.5",
             precipitation_probability=40,
         )
+
+
+# 시간대별 배열이 비었거나 길이가 다르면 변환 단계에서 거부해야 한다.
+def test_weather_rows_rejects_empty_or_mismatched_arrays() -> None:
+    from collectors import weather_rows
+
+    with pytest.raises(ValueError, match="비어"):
+        weather_rows({"hourly": {"time": [], "temperature_2m": [], "precipitation_probability": []}})
+    with pytest.raises(ValueError, match="길이"):
+        weather_rows(
+            {"hourly": {"time": ["t1", "t2"], "temperature_2m": [1.0], "precipitation_probability": [0, 0]}}
+        )
+
+
+# ip-api가 본문에서 실패를 알리면 저장하지 않아야 한다.
+def test_ip_location_row_rejects_fail_status() -> None:
+    from collectors import ip_location_row
+
+    with pytest.raises(ValueError, match="ip-api"):
+        ip_location_row({"status": "fail", "message": "reserved range"})
