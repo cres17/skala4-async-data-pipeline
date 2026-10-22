@@ -224,7 +224,7 @@ def main() -> None:
     # 전체 비동기 흐름을 실행하고 예상 가능한 오류를 한 곳에서 처리한다.
     try:
         asyncio.run(run_pipeline())
-    except (RuntimeError, ValidationError) as error:
+    except (RuntimeError, ValidationError, OSError) as error:
         LOGGER.error("프로그램 실행 실패: %s", error)
         raise SystemExit(1) from error
 

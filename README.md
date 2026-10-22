@@ -29,7 +29,7 @@ SKALA 데이터 분석 · AIOps 과정 Day 1 종합 실습입니다. 서로 다�
 | `collectors.py` | API 주소, 동시 요청, 응답을 행 단위 dict로 바꾸는 함수 |
 | `models.py` | `WeatherRecord`, `CountryInfo`, `IpLocation` Pydantic 모델 |
 | `storage.py` | CSV · Parquet 저장, 5회 반복 측정, 재로딩 무결성 확인 |
-| `test_pipeline.py` | 검증 모델의 정상 · 범위 초과 · 문자열 숫자 입력 테스트 |
+| `test_pipeline.py` | 검증 모델의 정상 · 범위 초과 · 문자열 숫자 입력 테스트, 응답 변환 함수의 빈 배열 · 길이 불일치 · ip-api 실패 응답 테스트 |
 
 ## 각 기술 설명
 
@@ -57,4 +57,4 @@ SKALA 데이터 분석 · AIOps 과정 Day 1 종합 실습입니다. 서로 다�
 
 ### pytest · Ruff
 
-`test_pipeline.py`가 날씨 모델이 정상 값은 받고, 범위를 넘는 강수 확률과 문자열 기온은 거부하는지 검사합니다. Ruff는 정적 검사에 씁니다.
+`test_pipeline.py`가 날씨 모델이 정상 값은 받고, 범위를 넘는 강수 확률과 문자열 기온은 거부하는지 검사합니다. 응답 변환 함수가 빈 배열 · 길이가 다른 배열 · ip-api 실패 응답을 거부하는지도 검사합니다. Ruff는 정적 검사에 씁니다.
